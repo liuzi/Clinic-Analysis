@@ -31,7 +31,7 @@ class Data_Output:
         plt.scatter(false_X['X0'], false_X['X1'], c=[colors[x] for x in false_X['Y_PRED']], marker='v', s=50)
 
         plt.title("KMeans %d" % para)
-        plt.savefig(self.work_path + filename +'.png')
+        plt.savefig(self.workpath + filename +'.png')
 
     # def save_as_csv(self):
 
