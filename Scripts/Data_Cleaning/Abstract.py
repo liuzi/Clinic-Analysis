@@ -33,6 +33,12 @@ class Abstract:
                              sort_values(ascending=0, by='counts')[:topN][[item_name]]
         self.write2file(frequent_items,filename)
 
+    def create_selected_users(self, output_name, user_file='PATIENTS', sample_rate=0.05):
+        userid = 'SUBJECT_ID'
+        whole_paitients = self.read_data(user_file)[[userid]]
+        selected_patients = whole_paitients.sample(frac=sample_rate)
+        self.write2file(selected_patients, 'sample_patients/%s' % output_name)
+        return selected_patients
 
 
 
@@ -44,10 +50,6 @@ class Abstract:
 Features from LABEVENTS
 '''
 
-def create_selected_users(dc, user_file='PATIENTS', sample_rate = 0.05):
-    userid = 'SUBJECT_ID'
-    whole_paitients = dc.read_data(user_file)[[userid]]
-    selected_patients = whole_paitients.sample(frac=sample_rate)
-    dc.write2file(selected_patients,'PATIENTS_5_PER')
+
 
 
