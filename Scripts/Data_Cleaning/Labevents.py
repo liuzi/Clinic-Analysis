@@ -23,12 +23,19 @@ class Labevents(Abstract.Abstract):
 
         # most_frequent_items = self.read_data()
         measurements_df = self.read_data(measures_file)[left_columns]
-        measure_items_df = self.read_data(items_file)[right_columns]
-        frequent_labels = self.read_data(top200_labels)[:num_labels][label]
-        joined_meas_df = self.left_join(measurements_df, measure_items_df, link_field).dropna(subset=[value])
-        measure_filter_df = joined_meas_df[(joined_meas_df[label].isin(frequent_labels)) \
-                                                & (joined_meas_df[subject_id].isin(user_list))]
+
+        '''
+        Select records in labevents with frequent label instead of itemid
+        '''
+        # measure_items_df = self.read_data(items_file)[right_columns]
+        # frequent_labels = self.read_data(top200_labels)[:num_labels][label]
+        # joined_meas_df = self.left_join(measurements_df, measure_items_df, link_field).dropna(subset=[value])
+        # measure_filter_df = joined_meas_df[(joined_meas_df[label].isin(frequent_labels)) \
+        #                                         & (joined_meas_df[subject_id].isin(user_list))]
+
+        measure_filter_df = measurements_df.dropna(subset=[value])
         return measure_filter_df
+
 
     def get_uservectors(self, user_list, raw_measurements, min_nulls=0.8):
         '''
@@ -40,10 +47,12 @@ class Labevents(Abstract.Abstract):
         '''
 
         value ='VALUE'
-        label = 'LABEL'
+        item_id = 'ITEMID'
+        ## For LABEL instead of ITEMID
+        # label_id = 'LABEL'
         valuenum = 'VALUENUM'
         userid = 'SUBJECT_ID'
-        labels_nulls = raw_measurements.dropna(subset=[value]).groupby(label)[valuenum].apply(
+        labels_nulls = raw_measurements.groupby(item_id)[valuenum].apply(
             lambda x: x.isnull().sum())
 
         # initiate all user vectors
@@ -55,7 +64,7 @@ class Labevents(Abstract.Abstract):
             user_vectors[user] = np.empty([0])
 
         # Groupby label
-        measure_label = raw_measurements.groupby(label)
+        measure_label = raw_measurements.groupby(item_id)
 
         for label, label_df in measure_label:
 
@@ -76,9 +85,9 @@ class Labevents(Abstract.Abstract):
 
             else:
                 # pick one iteration of discrete label
-                label_df = label_df.dropna(subset=[value])
+#                 label_df = label_df.dropna(subset=[value])
                 missed_users = set(user_list) - set(label_df[userid].unique())
-                label_df_agg = label_df.groupby([userid, value])[label].agg(['count'])
+                label_df_agg = label_df.groupby([userid, value])[item_id].agg(['count'])
                 label_df_agg_per = label_df_agg.groupby(level=0).apply(lambda x: 100 * x / float(x.sum()))
 
                 label_df_agg_per.reset_index()
@@ -98,13 +107,13 @@ class Labevents(Abstract.Abstract):
         return user_final_vectors.rename_axis('SUBJECT_ID').reset_index()
 
 
-
 ll = Labevents()
 ## Just run for one time: get seleted users and top items
 # create_selected_users(ll)
-selected_user_list = ll.read_data('temp/PATIENTS_5_PER')['SUBJECT_ID']
+selected_user_list = ll.read_data('PATIENTS')['SUBJECT_ID']
 # ll.get_top_items(linkeddata,200)
 user_vectors = ll.get_uservectors(selected_user_list,ll.read_measurements_data(selected_user_list))
-ll.write2file(user_vectors,'labtest_uservectors')
+
+ll.write2file(user_vectors,'USER_VECTORS/labtest_uservectors')
 # ll.write2file(user_vectors.dropna(axis=0,how='all'),'labtest_uservectors_notna')
 # ll.write2file(user_vectors.dropna(axis=1,how='all'),'labtest_uservectors_check_column')
