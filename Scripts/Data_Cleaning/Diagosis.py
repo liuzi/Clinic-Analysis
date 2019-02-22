@@ -26,8 +26,22 @@ class Diagnosis(Abstract.Abstract):
         filtered_diseass['LABEL'] = 1
         return filtered_diseass[[user_field, 'LABEL']].drop_duplicates()
 
+    def get_uservectors(self):
+
+        ## Reomove rows where ICD9_CODE is null
+        diagnosis_df = self.read_data('DIAGNOSES_ICD')
+        diagnosis_df=diagnosis_df.dropna(subset=['ICD9_CODE'])
+
+        ## Create binary value for diagnoses
+        diagnosis_df['VALUE'] = 1
+        user_diag_vec = pd.pivot_table(diagnosis_df, index=['SUBJECT_ID'], columns=['ICD9_CODE'],\
+                                       values=['VALUE']).fillna(0)
+        user_diag_vec = user_diag_vec.reset_index()
+        self.write2file(user_diag_vec,'USER_VECTORS/diagnoses_uservectors')
+
+
 dd = Diagnosis()
 # dd.write2file(dd.get_labels(),'diagnosis_label_4280')
-all_diagnoses = dd.get_labels()
-selected_user_list = dd.read_data('temp/PATIENTS_5_PER')
-dd.write2file(dd.left_join(selected_user_list,all_diagnoses,'SUBJECT_ID'),'selected_diagnoses')
+dd.get_uservectors()
+# selected_user_list = dd.read_data('temp/PATIENTS_5_PER')
+# dd.write2file(dd.left_join(selected_user_list,all_diagnoses,'SUBJECT_ID'),'selected_diagnoses')

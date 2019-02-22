@@ -1,7 +1,10 @@
-from Data_Cleaning import Abstract
+import sys
+import os
+import Abstract
 import pandas as pd
 import numpy as np
-
+os.environ["CUDA_DEVICES_ORDER"]="PCI_BUS_IS"
+os.environ["CUDA_VISIBLE_DEVICES"]=1
 
 class Labevents(Abstract.Abstract):
     def __init__(self):
@@ -107,13 +110,24 @@ class Labevents(Abstract.Abstract):
         return user_final_vectors.rename_axis('SUBJECT_ID').reset_index()
 
 
-ll = Labevents()
+# ll = Labevents()
 ## Just run for one time: get seleted users and top items
 # create_selected_users(ll)
-selected_user_list = ll.read_data('PATIENTS')['SUBJECT_ID']
+# selected_user_list = ll.read_data('PATIENTS')['SUBJECT_ID']
 # ll.get_top_items(linkeddata,200)
-user_vectors = ll.get_uservectors(selected_user_list,ll.read_measurements_data(selected_user_list))
+# user_vectors = ll.get_uservectors(selected_user_list,ll.read_measurements_data(selected_user_list))
 
-ll.write2file(user_vectors,'USER_VECTORS/labtest_uservectors')
+# ll.write2file(user_vectors,'USER_VECTORS/labtest_uservectors')
 # ll.write2file(user_vectors.dropna(axis=0,how='all'),'labtest_uservectors_notna')
 # ll.write2file(user_vectors.dropna(axis=1,how='all'),'labtest_uservectors_check_column')
+
+def main():
+    read_prefix = sys.argv[1]
+    write_prefix = sys.argv[2]
+    ll = Labevents(read_prefix=read_prefix, write_prefix=write_prefix)
+
+    selected_user_list = ll.read_data('PATIENTS')['SUBJECT_ID']
+    user_vectors = ll.get_uservectors(selected_user_list, ll.read_measurements_data(selected_user_list))
+    ll.write2file(user_vectors,'USER_VECTORS/labtest_uservectors')
+
+
