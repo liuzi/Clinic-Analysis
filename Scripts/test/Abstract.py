@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 
-class Abstract:
+class Abstract(object):
     def __init__(self, read_prefix = '/Users/lynnjiang/liuGit/data/%s.csv',\
                  write_prefix = '/Users/lynnjiang/liuGit/data/temp/%s.csv'):
         self.read_prefix = read_prefix

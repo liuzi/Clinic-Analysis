@@ -4,7 +4,7 @@ import Abstract
 import pandas as pd
 import numpy as np
 os.environ["CUDA_DEVICES_ORDER"]="PCI_BUS_IS"
-os.environ["CUDA_VISIBLE_DEVICES"]=1
+os.environ["CUDA_VISIBLE_DEVICES"]='1'
 
 class Labevents(Abstract.Abstract):
     def __init__(self):
