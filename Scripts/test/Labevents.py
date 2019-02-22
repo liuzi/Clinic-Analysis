@@ -9,7 +9,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]='1'
 
 class Labevents(Abstract.Abstract):
     def __init__(self, read_prefix, write_prefix):
-        super().__init__(read_prefix,write_prefix)
+        Abstract.Abstract.__init__(read_prefix,write_prefix)
 
     def read_measurements_data(self, user_list, items_file='D_LABITEMS', measures_file='LABEVENTS'):
         '''
