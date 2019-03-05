@@ -64,7 +64,7 @@ class Prescriptions(Abstract.Abstract):
         user_final_presvec= user_prescription_vector.fillna(0)
         ## TODO: reset_index has some problems, the title is contained as a row
         user_final_presvec = user_final_presvec.reset_index()
-        user_final_presvec.columns = user_final_presvec.columns.droplevel(-1)
+        user_final_presvec.columns = user_final_presvec.columns.droplevel(0)
 
         return user_final_presvec
 

@@ -37,6 +37,7 @@ class Diagnosis(Abstract.Abstract):
         user_diag_vec = pd.pivot_table(diagnosis_df, index=['SUBJECT_ID'], columns=['ICD9_CODE'],\
                                        values=['VALUE']).fillna(0)
         user_diag_vec = user_diag_vec.reset_index()
+        user_diag_vec.columns = user_diag_vec.columns.droplevel(0)
         self.write2file(user_diag_vec,'USER_VECTORS/diagnoses_uservectors')
 
 
