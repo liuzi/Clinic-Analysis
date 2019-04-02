@@ -8,8 +8,8 @@ class Abstract(object):
         self.read_prefix = read_prefix
         self.write_prefix = write_prefix
 
-    def read_data(self, filename):
-        return pd.read_csv(self.read_prefix % filename, sep=',', encoding='latin1')
+    def read_data(self, filename, header = 'infer'):
+        return pd.read_csv(self.read_prefix % filename, sep=',', header = header, encoding='latin1')
 
     def write2file(self,temp_result,filename):
         temp_result.to_csv(self.write_prefix % filename,index=False)
