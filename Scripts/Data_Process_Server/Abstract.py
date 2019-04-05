@@ -3,16 +3,25 @@ import numpy as np
 
 
 class Abstract(object):
-    def __init__(self, read_prefix = '/Users/lynnjiang/liuGit/data/%s.csv',\
-                 write_prefix = '/Users/lynnjiang/liuGit/data/temp/%s.csv'):
-        self.read_prefix = read_prefix
-        self.write_prefix = write_prefix
+    def __init__(self, read_prefix = '/Users/lynnjiang/liuGit/data/',\
+                 write_prefix = '/Users/lynnjiang/liuGit/data/temp/'):
+        self.read_prefix = self.regularize_path(read_prefix)
+        self.write_prefix = self.regularize_path(write_prefix)
 
-    def read_data(self, filename, header = 'infer'):
-        return pd.read_csv(self.read_prefix % filename, sep=',', header = header, encoding='latin1')
+    def regularize_path(self, path):
+        if(path[-1]=='/'): return path+'%s%s'
+        else: return path + '/%s%s'
+    
+    def read_data(self, filename, sep=',', header = 'infer', suffix = '.csv', pre=''):
+        if(pre == ''):
+            path = self.read_prefix
+        else:
+            path = self.regularize_path(pre)
+        path = path % (filename, suffix)
+        return pd.read_csv(path, sep=sep, header = header, encoding='latin1')
 
-    def write2file(self,temp_result,filename):
-        temp_result.to_csv(self.write_prefix % filename,index=False)
+    def write2file(self,temp_result,filename,suffix = '.csv'):
+        temp_result.to_csv(self.write_prefix % (filename, suffix),index=False)
 
     def left_join(self, left_df, right_df, joined_field):
         return pd.merge(left_df, right_df, how='left', on=[joined_field])
