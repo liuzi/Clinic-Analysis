@@ -3,6 +3,7 @@ import os
 from Abstract import Abstract
 import pandas as pd
 import numpy as np
+from tools import *
 
 class Labevents(Abstract):
     def __init__(self, read_prefix, write_prefix):
@@ -23,7 +24,7 @@ class Labevents(Abstract):
         num_labels = 20
 
         # most_frequent_items = self.read_data()
-        measurements_df = self.read_data(measures_file)[left_columns]
+        measurements_df = read_data(self.read_path(measures_file))[left_columns]
 
         '''
         Select records in labevents with frequent label instead of itemid
@@ -38,7 +39,7 @@ class Labevents(Abstract):
         return measure_filter_df
 
 
-    def get_uservectors(self, user_list, raw_measurements, min_nulls=0.8):
+    def get_uservectors(self, min_nulls=0.8):
         '''
         min_null: fields with none values more than 80% are categorical fields, otherwise are continuous fields.
         :param user_list:
@@ -46,6 +47,10 @@ class Labevents(Abstract):
         :param min_nulls:
         :return:
         '''
+        
+        user_list = read_data(self.read_path('PATIENTS'))['SUBJECT_ID']
+        raw_measurements = read_data(self.read_path('LABEVENTS'))[['SUBJECT_ID', 'ITEMID', 'VALUE', 'VALUENUM']].dropna(subset=['VALUE'])
+        
 
         value ='VALUE'
         item_id = 'ITEMID'
@@ -104,8 +109,11 @@ class Labevents(Abstract):
         user_vectors_notna = pd.DataFrame(user_vectors).T.dropna(axis=0,how='all')
         ## Imputation: with mean
         user_final_vectors = user_vectors_notna.fillna(user_vectors_notna.mean())
+        
+        user_final_vectors = user_final_vectors.rename_axis('SUBJECT_ID').reset_index()
+        write2file(user_final_vectors, self.write_path('labtest_uservectors'))
 
-        return user_final_vectors.rename_axis('SUBJECT_ID').reset_index()
+        return user_final_vectors
 
 
 # ll = Labevents()
@@ -119,17 +127,15 @@ class Labevents(Abstract):
 # ll.write2file(user_vectors.dropna(axis=0,how='all'),'labtest_uservectors_notna')
 # ll.write2file(user_vectors.dropna(axis=1,how='all'),'labtest_uservectors_check_column')
 
-def main():
+# def main():
 
-    ll = Labevents(read_prefix=sys.argv[1]+'%s.csv', write_prefix=sys.argv[2]+'%s.csv')
+#     ll = Labevents(read_prefix=sys.argv[1]+'%s.csv', write_prefix=sys.argv[2]+'%s.csv')
 
-    selected_user_list = ll.read_data('PATIENTS')['SUBJECT_ID']
-    user_vectors = ll.get_uservectors(selected_user_list, ll.read_measurements_data(selected_user_list))
-    ll.write2file(user_vectors,'USER_VECTORS/labtest_uservectors')
+#     selected_user_list = ll.read_data('PATIENTS')['SUBJECT_ID']
+#     user_vectors = ll.get_uservectors(selected_user_list, ll.read_measurements_data(selected_user_list))
+#     ll.write2file(user_vectors,'USER_VECTORS/labtest_uservectors')
 
-main()
-
-w
+# main()
 
 
 

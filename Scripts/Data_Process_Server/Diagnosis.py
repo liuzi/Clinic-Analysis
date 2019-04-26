@@ -1,6 +1,7 @@
 import sys
 import os
 from Abstract import Abstract
+from tools import *
 import pandas as pd
 import numpy as np
 
@@ -13,13 +14,13 @@ class Diagnosis(Abstract):
     # 4280 Congestive heart failure
     def get_labels(self, label_filed='ICD9_CODE', user_field='SUBJECT_ID'):
 
-        icd9_code_df = self.read_data('D_ICD_DIAGNOSES')
-        diagnosis_df = self.read_data('DIAGNOSES_ICD')
+        icd9_code_df = read_data(self.read_path('D_ICD_DIAGNOSES'))
+        diagnosis_df = read_data(self.read_path('DIAGNOSES_ICD'))
         label_list = ['4280']
         link_field = 'ICD9_CODE'
         columns = ['SUBJECT_ID', 'ICD9_CODE', 'SHORT_TITLE', 'LONG_TITLE']
 
-        diagnosis_desc_df = self.left_join(diagnosis_df,icd9_code_df,link_field)
+        diagnosis_desc_df = left_join(diagnosis_df,icd9_code_df,link_field)
 
 
         ## TODO: What if it is required to process multiple diseases?
@@ -31,7 +32,7 @@ class Diagnosis(Abstract):
     def get_uservectors(self):
 
         ## Reomove rows where ICD9_CODE is null
-        diagnosis_df = self.read_data('DIAGNOSES_ICD')
+        diagnosis_df = read_data(self.read_path('DIAGNOSES_ICD'))
         diagnosis_df=diagnosis_df.dropna(subset=['ICD9_CODE'])
 
         ## Create binary value for diagnoses
@@ -41,16 +42,17 @@ class Diagnosis(Abstract):
         user_diag_vec = user_diag_vec.reset_index()
         user_diag_vec.columns = user_diag_vec.columns.droplevel(0)
         user_diag_vec=user_diag_vec.rename(columns = {user_diag_vec.columns[0]:'SUBJECT_ID'})
-        self.write2file(user_diag_vec,'USER_VECTORS/diagnoses_uservectors')
+        write2file(user_diag_vec,self.write_path('diagnoses_uservectors'))
+        return user_diag_vec
 
 
-def main():
+# def main():
 
-    dd = Diagnosis(read_prefix=sys.argv[1]+'%s.csv', write_prefix=sys.argv[2]+'%s.csv')
-    user_vectors = dd.get_uservectors()
-#     dd.write2file(user_vectors,'USER_VECTORS/diagnoses_uservectors')
+#     dd = Diagnosis(read_prefix=sys.argv[1]+'%s.csv', write_prefix=sys.argv[2]+'%s.csv')
+#     user_vectors = dd.get_uservectors()
+# #     dd.write2file(user_vectors,'USER_VECTORS/diagnoses_uservectors')
 
-main()
+# main()
 
 
 # dd = Diagnosis()

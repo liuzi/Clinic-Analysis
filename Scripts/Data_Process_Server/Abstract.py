@@ -1,34 +1,20 @@
 import pandas as pd
 import numpy as np
-
+from tools import *
+import os
 
 class Abstract(object):
     def __init__(self, read_prefix = '/Users/lynnjiang/liuGit/data/',\
                  write_prefix = '/Users/lynnjiang/liuGit/data/temp/'):
-        self.read_prefix = self.regularize_path(read_prefix)
-        self.write_prefix = self.regularize_path(write_prefix)
-
-    def regularize_path(self, path):
-        if(path[-1]=='/'): return path+'%s%s'
-        else: return path + '/%s%s'
+        self.read_prefix = read_prefix
+        self.write_prefix = write_prefix
+        
+    def read_path(self, file_name):
+        return os.path.join(self.read_prefix,file_name)
     
-    def read_data(self, filename, sep=',', header = 'infer', suffix = '.csv', pre=''):
-        if(pre == ''):
-            path = self.read_prefix
-        else:
-            path = self.regularize_path(pre)
-        path = path % (filename, suffix)
-        return pd.read_csv(path, sep=sep, header = header, encoding='latin1')
-
-    def write2file(self,temp_result,filename,suffix = '.csv'):
-        temp_result.to_csv(self.write_prefix % (filename, suffix),index=False)
-
-    def left_join(self, left_df, right_df, joined_field):
-        return pd.merge(left_df, right_df, how='left', on=[joined_field])
-
-    def inner_join(self, left_df, right_df, joined_field):
-        return pd.merge(left_df, right_df, how='inner', on=[joined_field])
-
+    def write_path(self, file_name):
+        return os.path.join(self.write_prefix,file_name)
+    
     def get_top_items(self,dataset,topN,item_name,filename):
         '''
         Only run for one tiem
@@ -40,13 +26,13 @@ class Abstract(object):
         '''
         frequent_items = dataset.groupby(item_name).size().reset_index(name='counts').\
                              sort_values(ascending=0, by='counts')[:topN][[item_name]]
-        self.write2file(frequent_items,filename)
+        write2file(frequent_items,self.write_path(filename))
 
     def create_selected_users(self, output_name, user_file='PATIENTS', sample_rate=0.05):
         userid = 'SUBJECT_ID'
         whole_paitients = self.read_data(user_file)[[userid]]
         selected_patients = whole_paitients.sample(frac=sample_rate)
-        self.write2file(selected_patients, 'sample_patients/%s' % output_name)
+        write2file(selected_patients, self.write_path('sample_patients/%s' % output_name))
         return selected_patients
 
 
