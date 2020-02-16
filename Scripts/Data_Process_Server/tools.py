@@ -1,7 +1,7 @@
 import pandas as pd
 
-def read_data(file_path, dtype=None, sep=',', header = 'infer', suffix = '.csv', pre=''):
-    return pd.read_csv(file_path+suffix, dtype=dtype, sep=sep, header = header, encoding='latin1')
+def read_data(file_path, dtype=None, usecols=None, sep=',', header = 'infer', suffix = '.csv', pre=''):
+    return pd.read_csv(file_path+suffix, dtype=dtype, usecols=usecols,sep=sep, header = header, encoding='latin1')
 
 def write2file(df, file_path, suffix = '.csv'):
     df.to_csv(file_path+suffix, index=False)
