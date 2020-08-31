@@ -47,8 +47,8 @@ def re_split(text, regex = r"\n\n[A-Z][A-Za-z/ ]+:"):
     
     
 def extract_sections(text,rule_index = 0, rerules = [
+    r"\n\n[A-Z][A-Z/ ]+:",
     r"\n[A-Z][A-Z/ ]+:",
-    # r"\n\n[A-Z][A-Z/ ]+:",
     r"\n\n[A-Z][A-Za-z/ ]+:",
     r"\n[A-Z][A-Za-z/ ]+:"
 ], selected_titles = ["hospital course","medical history","medications"]):
@@ -102,7 +102,7 @@ def save_keysessions_byfile(
     
     write_rule_prefix = join(write_prefix, "Rule%d"%rule_index)
     create_folder_overwrite(write_rule_prefix)
-    tilfolder_path = [join(write_rule_prefix, title) for title in folder_titles]
+    tilfolder_path = [join(write_rule_prefix, title.replace(" ","_")) for title in folder_titles]
     [create_folder_overwrite(path) for path in tilfolder_path]
     title_path_dict = dict(zip(folder_titles, tilfolder_path))
     
@@ -116,7 +116,7 @@ def save_keysessions_byfile(
             for _, row in subgroup[cols].iterrows():
                 file_name = file%(str(subject_id), hadm_id, row['GROUP_RANK'])
                 [write2txt(row[title], join(
-                    title_path_dict[title],file_name)) for title in folder_titles if row[title]]
+                    title_path_dict[title],file_name.replace(" ","_"))) for title in folder_titles if row[title]]
                 # write2txt(row["HOSPITAL COURSE"],join(course_pre,file_name))
                 # write2txt(row["MEDICAL HISTORY"],join(pastdrug_pre,file_name))
                 # write2txt(row["MEDICATIONS ON ADMISSION"],join(admi_medi_pre,file_name))        
@@ -157,7 +157,7 @@ def get_rule_result(rule_index):
     test code: remain, rule 2
 """
 def main():
-    for rule_index in range(0,3):
+    for rule_index in range(0,4):
         # notes_discharge_df=read_data(join(write_prefix,("%s_Remain"%rule_dissum_file)%(rule_index-1)),dtype={"HADM_ID":str})
         # notes_discharge_df_rule1 = run_rule(notes_discharge_df, rule_index=1)
         get_rule_result(rule_index)
