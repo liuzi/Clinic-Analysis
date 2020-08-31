@@ -1,7 +1,9 @@
 import pandas as pd
 import os
-import errno
+# import errno
 import json
+import shutil
+from os import makedirs
 
 def read_data(file_path, dtype=None, usecols=None, sep=',', header = 'infer', suffix = '.csv', pre=''):
     return pd.read_csv(file_path+suffix, dtype=dtype, usecols=usecols,sep=sep, header = header, encoding='latin1')
@@ -30,7 +32,12 @@ def create_folder(path):
     except OSError:
         print ("Directory %s already exists" % path)
     else:
-        print ("Successfully created the directory %s" % path)
+        print ("Successfully create the directory %s" % path)
+
+def create_folder_overwrite(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path)
 
 def write2file(df, file_path, suffix = '.csv'):
     df.to_csv(file_path+suffix, index=False)
