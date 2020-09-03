@@ -4,7 +4,7 @@ import re
 
 from os.path import *
 # from S2.utils.tools import *
-from utils.tools import *
+from _utils.tools import *
 
 read_prefix = "/data/MIMIC3/"
 dis_sum_prefix = "/data/liu/mimic3/NOTESEVENT_EXTRACTION/ALL"
