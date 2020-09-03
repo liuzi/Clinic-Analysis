@@ -1,8 +1,11 @@
-from utils.tools import *
+from utils._tools import *
+from utils._path import*
 import os, sys
 import pandas as pd
+import numpy as np
 from os.path import join
 from pathlib import Path
+
 
 class feature_creation():
     """ Generate features from different data sources using 
@@ -31,31 +34,14 @@ class feature_creation():
     
     Examples
     --------
-    
-    >>> from sklearn.cluster import KMeans
-    >>> import numpy as np
-    >>> X = np.array([[1, 2], [1, 4], [1, 0],
-    ...               [10, 2], [10, 4], [10, 0]])
-    >>> kmeans = KMeans(n_clusters=2, random_state=0).fit(X)
-    >>> kmeans.labels_
-    array([1, 1, 1, 0, 0, 0], dtype=int32)
-    >>> kmeans.predict([[0, 0], [12, 3]])
-    array([1, 0], dtype=int32)
-    >>> kmeans.cluster_centers_s
-    array([[10.,  2.],
-           [ 1.,  2.]])
+
     
     """
     
-    """ Static paths """
-    read_prefix = "/data/MIMIC3/"
-    res_patient_subgroup_prefix = "/data/liu/adverse_events/patient_subgroup"
-    ## DRUG-ADE IN SIDER4, !!SIDER HAVE DUPLICATED RECORDS
-    sideffect_prefix = '/data/liu/adverse_events'
-    output_prefix="/data/liu/mimic3/CLAMP_NER/single_drug_analysis/%s/cluster"
+
     
-    @_deprecate_positional_args
-    def __init__(self,drugid="197380"):
+
+    def __init__(self):
         """
         Parameters
         ----------
@@ -64,94 +50,133 @@ class feature_creation():
             Determine the study object. All analysis are based on
             the selected drug/drugs.
         """
-        self.drugid = drugid
-        self.outputpath = output_prefix%drugid
-        create_folder(self.outputpath)
+
+
+
+        # self.drugid = drugid
+        # self.outputpath = singledrug_prefix%drugid
+        # print(self.outputpath)
+        ## folders for features
+        self.sample_epis_file='HADM_ID_SAMPLE_PER_PATIENT'
+        self.feature_folder=join(singledrug_prefix,"FEATURE")
+        create_folder(self.feature_folder)
         self.hadm_sampled = None
     
     def sampling(self, df, size, sample_group="SUBJECT_ID", sample_unit="HADM_ID"):
+        """Get randomly selected samples from each subgroup across all 
+
+        Args:
+            df (DataFrame): patient-episode record
+            size (int): numbers of samples wanna be selected from each subgroups
+            sample_group (str, optional): column name of subgroup. Defaults to "SUBJECT_ID".
+            sample_unit (str, optional): column name of sampled subject. Defaults to "HADM_ID".
+
+        Returns:
+            [type]: 
+        """
+
         fn = lambda obj: obj.loc[np.random.choice(obj.index, size),:]
-        return df.groupby(sample_group, as_index=True).apply(fn)[sample_unit]
+        return df.groupby(sample_group, as_index=True).apply(fn)
     
-    def sampled_epis(self, pres_ade_df, size=1):
+    def get_sampled_epis(self, pres_ade_df, size=1):
         """Sample episode for each patient and generate the file of HADM IDs. 
         If the file already exists. skip this method
         
         Notes
         -----
         A patient may enter hospital several times so they have multiple episodes (HADM ID) 
-        Thus we randomly keep one episode for each patients
+        Thus we randomly select one episode for each patient
         """
         
-        if Path(join(self.outputpath,'HADM_ID_SAMPLE_PER_PATIENT')).exists():
-            hadm_sampled = read_data(join(res_patient_subgroup_prefix,'HADM_ID_SAMPLEPER_PATIENT'))['HADM_ID']
+        if Path(join(singledrug_prefix,"%s.csv"%self.sample_epis_file)).exists():
+            hadm_sampled = read_data(join(singledrug_prefix,self.sample_epis_file))['HADM_ID']
         else:            
             ## RUN ONLY FOR THE FIRST TIME! ramdonly select one hospital stay for each patient
             size = 1        # sample size
             ## ramdonly get a sample hadm_id from each patient's record
-            hadm_sampled = self.sampling(pres_ade_df[['SUBJECT_ID','HADM_ID']].drop_duplicates(),
-                                        size)
+            hadm_sampled = self.sampling(pres_ade_df[['SUBJECT_ID','HADM_ID']].drop_duplicates(),size)
     #         pres_patient_hadm = pres_ade_df[['SUBJECT_ID','HADM_ID']].drop_duplicates()
     #         hadm_sampled = pres_patient_hadm.groupby('SUBJECT_ID', as_index=True).apply(fn)['HADM_ID']
-            write2file(pd.DataFrame(hadm_sampled),join(self.outputpath,'HADM_ID_SAMPLE_PER_PATIENT'))
+            write2file(pd.DataFrame(hadm_sampled),join(singledrug_prefix,self.sample_epis_file))
         self.hadm_sampled = hadm_sampled
-        
-    
-    def ade_matrix():
-        """
-        
-        Parameters
-        ----------
-        
-        
+
+
+      
+    def create_pres_ade_feature(self,pres_ade_df,ade_df):
+        """Second features
+
         Notes
         -----
         Data Source: 
             1) PRESCRIPTION table (pres_df) 
-            2) SIDER table (ade_df)
-        
-        
+            2) SIDER table (ade_df)    
+
         Steps:
         ------
             1) remove drugs from PRESCRIPTION table that are not in SIDER table
-        """
 
-        ## PATIENT PRESCRIPTION LOG
-        pres_df=read_data(join(read_prefix,'PRESCRIPTIONS'),dtype={'NDC':str}).dropna(subset=['NDC'])
+        Args:
+            pres_ade_df ([type]): [description]
+        """        
 
-        ## DRUG-ADE IN SIDER4, !!SIDER HAVE DUPLICATED RECORDS
-        sideffect_prefix = '/data/liu/adverse_events'
-        ade_df = read_data(join(sideffect_prefix, 'ndc_icd9_side_effects'), 
-                           dtype={'NDC':str,'ICD9_CODE':str},usecols=['NDC','ICD9_CODE']).drop_duplicates()
+    #     write2file(pres_ade_df,join(res_patient_subgroup_prefix,'PRESCRIPTION_SIDER'))
 
-        ## GET LIST OF DRUGS FROM SIDER4
-        ade_drug=ade_df['NDC'].drop_duplicates()
-
-        ## Remove records from Prescriptions where drugs cannot be found in SIDER
-        pres_ade_df = pres_df[pres_df['NDC'].isin(ade_drug)].drop_duplicates()
-
-
-        write2file(pres_ade_df,join(res_patient_subgroup_prefix,'PRESCRIPTION_SIDER'))
-
-
-
-        pres_ade_sampled_df=pres_ade_df[pres_ade_df['HADM_ID'].isin(hadm_sampled)]
+        pres_ade_sampled_df=pres_ade_df[pres_ade_df['HADM_ID'].isin(self.hadm_sampled)]
         # pres_ade_sampled_df.head()
-
-        diaglog_sampled_df=diaglog_df[diaglog_df['HADM_ID'].isin(hadm_sampled)]
+        ## PATIENT DIAGNOSIS LOG
+        diaglog_df = read_data(
+            join(read_prefix,'DIAGNOSES_ICD'),usecols=['SUBJECT_ID','HADM_ID','ICD9_CODE']
+            ).dropna(subset=['ICD9_CODE']).drop_duplicates()
+        diaglog_sampled_df=diaglog_df[diaglog_df['HADM_ID'].isin(self.hadm_sampled)]
 
 
         pres_diag_sampled_df=inner_join(pres_ade_sampled_df,diaglog_sampled_df,['SUBJECT_ID','HADM_ID'])
-
-        write2file(pres_diag_sampled_df,join(res_patient_subgroup_prefix,'pres_diag_sampled'))
-
+        # write2file(pres_diag_sampled_df,join(res_patient_subgroup_prefix,'PRES_DIAG_SAMPLED'))
         presdiag_SIDER_df = inner_join(pres_diag_sampled_df,ade_df,['NDC','ICD9_CODE'])
+        write2file(presdiag_SIDER_df,join(self.feature_folder,'PRES_DIAG_SIDER'))
+        
+    
+    def create_data(self):
+        """
+        Notes:
+        1) First Feature:
 
-        write2file(presdiag_SIDER_df,join(res_patient_subgroup_prefix,'pres_diag_SIDER'))
+        2) Second Feature:
+            Drugs: PRESCRIPTIONS.csvm only remain rows with drugs that can be found in SIDER
+        3) Third Feature:
+        """
+
+        ## PATIENT PRESCRIPTION LOG
+        pres_df=read_data(join(
+            read_prefix,'PRESCRIPTIONS'),dtype={'NDC':str}).dropna(subset=['NDC'])
+
+        ## DRUG-ADE IN SIDER4, !!SIDER HAVE DUPLICATED RECORDS
+        ade_df = read_data(
+            join(sideffect_prefix, 'ndc_icd9_side_effects'), 
+            dtype={'NDC':str,'ICD9_CODE':str},usecols=['NDC','ICD9_CODE']).drop_duplicates()
+
+        ## GET LIST OF DRUGS FROM SIDER4
+        ade_drug=ade_df['NDC'].drop_duplicates()
+        # NOTE:
+        ## Remove records from Prescriptions where drugs cannot be found in SIDER
+        pres_ade_df = pres_df[pres_df['NDC'].isin(ade_drug)].drop_duplicates()
+
+        ## Sample only one episode for each patient
+        self.get_sampled_epis(pres_ade_df)
+        self.create_pres_ade_feature(pres_ade_df, ade_df)
+
         
         
         
-        
+
+def test():
+    fc = feature_creation()
+    fc.create_data()
+
+
+test()
+# print("test")
+
         
         
         
