@@ -1,5 +1,5 @@
-from utils._tools import *
-from utils._path import*
+from S2.utils._tools import *
+from S2.utils._path import*
 import os, sys
 import pandas as pd
 import numpy as np
@@ -59,7 +59,6 @@ class feature_creation():
         ## folders for features
         self.sample_epis_file='HADM_ID_SAMPLE_PER_PATIENT'
         self.feature_folder=join(singledrug_prefix,"FEATURE")
-        create_folder(self.feature_folder)
         self.hadm_sampled = None
     
     def sampling(self, df, size, sample_group="SUBJECT_ID", sample_unit="HADM_ID"):
@@ -134,7 +133,42 @@ class feature_creation():
         # write2file(pres_diag_sampled_df,join(res_patient_subgroup_prefix,'PRES_DIAG_SAMPLED'))
         presdiag_SIDER_df = inner_join(pres_diag_sampled_df,ade_df,['NDC','ICD9_CODE'])
         write2file(presdiag_SIDER_df,join(self.feature_folder,'PRES_DIAG_SIDER'))
+
+
+    def print_epis_stats(self, df):  
+        print("# of rows: %d"%len(df))
+        print("# of patients: %d"%len(df['SUBJECT_ID'].unique()))
+        print("# of patients: %d"%len(df['HADM_ID'].unique()))    
+
+    def df2matrix(self,df,col):
+        col=df.columns
+        print("Original Data:")
+        print_statistics(df)
+        df_sampled = left_join(sampled_hadmid,df,list(sampled_hadmid.columns))
+        print("Sampled Data:")
+        print_statistics(df_sampled)
         
+        # pres_matrix = pres_df_1k_1k_hadm.pivot(index='SUBJECT_ID', columns='NDC', values='VALUE').fillna(0).reset_index()
+        return df_sampled
+
+    # TODO: 1ST
+    def create_fourdata_repre128(self):
+
+        ## pre-process four input data respectively
+        #1) diagnosis: ICD9_CODE, 1
+        diag_df = read_data(join(
+            read_prefix,"DIAGNOSES_ICD"),
+            dtype={"SUBJECT_ID":str,"HADM_ID":str})
+        # diag_df.head()
+        df2matrix(diag_df,"aa")
+        return 0
+
+    
+
+    def create_dissum_feature(self):
+        # TODO: 2ND
+        return 0
+
     
     def create_data(self):
         """
@@ -146,6 +180,7 @@ class feature_creation():
         3) Third Feature:
         """
 
+        create_folder(self.feature_folder)
         ## PATIENT PRESCRIPTION LOG
         pres_df=read_data(join(
             read_prefix,'PRESCRIPTIONS'),dtype={'NDC':str}).dropna(subset=['NDC'])
@@ -174,8 +209,18 @@ def test():
     fc.create_data()
 
 
-test()
+# test()
 # print("test")
+# import tensorflow as tf
+# # print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+# tf.debugging.set_log_device_placement(True)
+
+# # Create some tensors
+# a = tf.constant([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+# b = tf.constant([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+# c = tf.matmul(a, b)
+
+# print(c)
 
         
         
