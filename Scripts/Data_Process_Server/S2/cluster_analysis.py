@@ -152,15 +152,24 @@ class feature_creation():
         return df_sampled
 
     # TODO: 1ST
-    def create_fourdata_repre128(self):
+    def create_fivedata_repre128(self):
 
         ## pre-process four input data respectively
-        #1) diagnosis: ICD9_CODE, 1
+        #NOTE:1) diagnosis: ICD9_CODE, 1
         diag_df = read_data(join(
             read_prefix,"DIAGNOSES_ICD"),
             dtype={"SUBJECT_ID":str,"HADM_ID":str})
         # diag_df.head()
-        df2matrix(diag_df,"aa")
+        # df2matrix(diag_df,"aa")
+        # NOTE:2) prescription: NDC, 1
+
+        # HACK:
+        # NOTE:3) labevents: ITEMID, randomly selected VALUE
+
+        # NOTE:4) procedure: ICD9_CODE, 1
+
+        # NOTE: 5) demographic: []
+        
         return 0
 
     

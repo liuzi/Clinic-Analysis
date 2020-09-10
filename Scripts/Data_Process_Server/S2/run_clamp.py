@@ -1,5 +1,5 @@
 import os 
-from _utils.tools import *
+from utils._tools import *
 from os.path import *
 
 def run_clamp(
@@ -20,8 +20,9 @@ def run_clamp(
         [os.system(nohup_cmd%((dir, sub_dir)*2)) for sub_dir in os.listdir(input_root)]
         # print([sub_dirs])
         
+# HACK: uncomment code in next line
+# run_clamp()
 
-run_clamp()
 # section="HOSPITAL_COURSE"
 # rule_index=0
 # rule="Rule%d"%(rule_index)
