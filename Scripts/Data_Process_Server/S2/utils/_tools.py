@@ -47,3 +47,9 @@ def left_join(left_df, right_df, joined_field):
 
 def inner_join(left_df, right_df, joined_field):
     return pd.merge(left_df, right_df, how='inner', on=joined_field)
+
+def print_patient_stats(df):
+    
+    print("# of rows: %d"%len(df))
+    print("# of patients: %d"%len(df['SUBJECT_ID'].unique()))
+    print("# of episodes: %d"%len(df['HADM_ID'].unique()))
