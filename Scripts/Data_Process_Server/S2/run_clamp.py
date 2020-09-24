@@ -1,10 +1,11 @@
 import os 
 from utils._tools import *
 from os.path import *
+from utils._path import *
 
 def run_clamp(
-    input_path = "/data/liu/mimic3/CLAMP_NER/input", 
-    output_path = "/data/liu/mimic3/CLAMP_NER/ner-attribute/output"):
+    input_path = clamp_input_prefix, 
+    output_path = clamp_output_prefix):
 
     dirs = [dir for dir in os.listdir(input_path) if os.path.splitext(dir)[0].startswith('Rule')]
     print(dirs)

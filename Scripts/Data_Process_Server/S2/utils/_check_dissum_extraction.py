@@ -1,7 +1,7 @@
 from _path import *
 from _tools import *
 from os.path import *
-
+import glob
 import io
 
 def list_delta(str1, str2):
@@ -68,7 +68,19 @@ def run_for_4rules():
     for i in range(0,4):
         create_benchmark(i,benchmark_folder)
 
-run_for_4rules()
+def concat_benchmark():
+    read_dtype={"HADM_ID":str, "GROUP_RANK":str}
+    rule_benchmark_episodes=pd.concat([
+        read_data(benchmark_file,dtype=read_dtype)[[*read_dtype]].drop_duplicates() \
+            for benchmark_file in glob.glob(
+                os.path.join(clamp_rule_benchmark,"*_NORMAL.csv"))],axis=0)
+    # print(len(rule_benchmark_episodes))
+    print_patient_stats(rule_benchmark_episodes)
+    # write2file(rule_benchmark_episodes,join(clamp_rule_benchmark,"ReRule_Discharge summary_Only_NORMAL_ALL"))
+concat_benchmark()
+ 
+
+# run_for_4rules()
 
 
 

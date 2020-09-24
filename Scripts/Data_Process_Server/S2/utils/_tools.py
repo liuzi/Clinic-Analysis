@@ -3,10 +3,14 @@ import os
 # import errno
 import json
 import shutil
-from os import makedirs
+from pathlib import Path
 
 def read_data(file_path, dtype=None, usecols=None, sep=',', header = 'infer', suffix = '.csv', pre=''):
-    return pd.read_csv(file_path+suffix, dtype=dtype, usecols=usecols,sep=sep, header = header, encoding='latin1')
+    if(file_path.endswith(suffix)):
+        final_file_path=file_path
+    else:
+        final_file_path = file_path+suffix
+    return pd.read_csv(final_file_path, dtype=dtype, usecols=usecols,sep=sep, header = header, encoding='latin1')
 
 def write2txt(string, file_path):
     textfile = open("%s.txt"%file_path, 'w')
@@ -42,6 +46,14 @@ def create_folder_overwrite(path):
 def write2file(df, file_path, suffix = '.csv'):
     df.to_csv(file_path+suffix, index=False)
 
+def write2file_nooverwrite(df, file_path, suffix = '.csv'):
+    if Path(file_path+suffix).exists():
+        print("%s already exists."%(file_path+suffix))
+    else:
+        df.to_csv(file_path+suffix, index=False)
+        print("%s is successfully saved."%(file_path+suffix))
+
+
 def left_join(left_df, right_df, joined_field):
     return pd.merge(left_df, right_df, how='left', on=joined_field)
 
@@ -51,5 +63,7 @@ def inner_join(left_df, right_df, joined_field):
 def print_patient_stats(df):
     
     print("# of rows: %d"%len(df))
-    print("# of patients: %d"%len(df['SUBJECT_ID'].unique()))
-    print("# of episodes: %d"%len(df['HADM_ID'].unique()))
+    
+    for col in df.columns:
+        print("# of %s: %d"%(col,len(df[col].unique())))
+        # print("# of %s: %d"%len(df['HADM_ID'].unique()))
