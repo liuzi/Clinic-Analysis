@@ -1,13 +1,19 @@
 from utils._tools import *
 from utils._path import*
+# from utils._preprocess_mimic import *
 # from S2.utils._tools import *
 # from S2.utils._path import*
 import os, sys
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 from os.path import join
 from pathlib import Path
 import glob
+
+from sklearn.cluster import KMeans
+from collections import Counter
+import math
 
 
 class feature_creation():
@@ -44,7 +50,7 @@ class feature_creation():
 
     
 
-    def __init__(self):
+    def __init__(self,rxnorm_id):
         """
         Parameters
         ----------
@@ -60,6 +66,8 @@ class feature_creation():
         # self.outputpath = singledrug_prefix%drugid
         # print(self.outputpath)
         ## folders for features
+        self.rxnorm_id=rxnorm_id
+        create_folder(join(singledrug_prefix,rxnorm_id))
         self.sample_epis_file='HADM_ID_SAMPLE_PER_PATIENT'
         self.feature_folder=join(singledrug_prefix,"FEATURE")
         self.preprocess_folder=join(self.feature_folder,"PRE_PROCESS")
@@ -105,8 +113,12 @@ class feature_creation():
         self.hadm_sampled = hadm_sampled
 
 
-      
-    def create_pres_ade_feature(self,pres_ade_df,ade_df):
+    # HACK: FEATURE 0  
+    def create_pres_ade_feature(
+        self,
+        pres_ade_df,
+        ade_df
+        ):
         """Second features
 
         Notes
@@ -135,15 +147,12 @@ class feature_creation():
 
 
         pres_diag_sampled_df=inner_join(pres_ade_sampled_df,diaglog_sampled_df,['SUBJECT_ID','HADM_ID'])
+        write2file(presdiag_SIDER_df,join(self.preprocess_folder,'PRES_DIAG_SIDER'))
 
         presdiag_SIDER_df = inner_join(pres_diag_sampled_df,ade_df,['NDC','ICD9_CODE'])
-        write2file(presdiag_SIDER_df,join(self.feature_folder,'PRES_DIAG_SIDER'))
-
-
-    # def print_epis_stats(self, df):  
-    #     print("# of rows: %d"%len(df))
-    #     print("# of patients: %d"%len(df['SUBJECT_ID'].unique()))
-    #     print("# of patients: %d"%len(df['HADM_ID'].unique()))    
+        write2file(presdiag_SIDER_df,join(self.preprocess_folder,'PRES_DIAG_SIDER'))
+        presdiag_SIDER_matrix = self.df2matrix(presdiag_SIDER_df[["SUBJECT_ID","HADM_ID","NDC"]])
+        write2file(presdiag_SIDER_matrix,join(self.feature_folder,"pres_diag_sider_matrix"))   
 
 
     # HACK: FEATURE 1
@@ -172,23 +181,24 @@ class feature_creation():
         read_dtype={"SUBJECT_ID":str,"HADM_ID":str}
         ## pre-process four input data respectively
         #NOTE:1) diagnosis: ICD9_CODE, value=1
-        # diag_df = read_data(join(
-        #     read_prefix,"DIAGNOSES_ICD"),
-        #     dtype=read_dtype).dropna(subset=["ICD9_CODE"])        
-        # diag_matrix = self.df2matrix(
-        #     diag_df[[*read_dtype]+["ICD9_CODE"]].drop_duplicates())
-        # write2file(diag_matrix,join(self.preprocess_folder,"diag_matrix"))
+        diag_df = read_data(join(
+            read_prefix,"DIAGNOSES_ICD"),
+            dtype=read_dtype).dropna(subset=["ICD9_CODE"])        
+        diag_matrix = self.df2matrix(
+            diag_df[[*read_dtype]+["ICD9_CODE"]].drop_duplicates())
+        write2file(diag_matrix,join(self.preprocess_folder,"diag_matrix"))
     
    
         # NOTE:2) prescription: NDC, value=1
-        # pres_df = read_data(
-        #     join(read_prefix,'PRESCRIPTIONS'),
-        #     dtype={**read_dtype,**{"NDC":str}})[[*read_dtype]+["NDC"]].dropna(subset=['NDC'])
-        # pres_df = pres_df[pres_df['NDC']!="0"].drop_duplicates()
-        # write2file(self.df2matrix(pres_df) ,join(self.preprocess_folder,"pres_matrix"))
+        pres_df = read_data(
+            join(read_prefix,'PRESCRIPTIONS'),
+            dtype={**read_dtype,**{"NDC":str}})[[*read_dtype]+["NDC"]].dropna(subset=['NDC'])
+        pres_df = pres_df[pres_df['NDC']!="0"].drop_duplicates()
+        write2file(self.df2matrix(pres_df) ,join(self.preprocess_folder,"pres_matrix"))
 
         # HACK:
         # NOTE:3) labevents: ITEMID, randomly selected VALUE
+        get_labmatrix()
 
         # NOTE:4) procedure: ICD9_CODE, value=1
         procedure_df=read_data(
@@ -198,23 +208,23 @@ class feature_creation():
 
 
         # NOTE: 5) demographic: []
-        
-        # return diag_matrix
+        get_demographic_df()
+
 
     
     # HACK:Feature 2
 
 
 
-    def create_dissum_feature(self):
+    # def create_dissum_feature(self):
         # TODO: 2ND
         ## import original concat dataframe of clamp result
-        section_titles=['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']
+        # section_titles=['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']
 
-        input_files=glob.glob(os.path.join(
-            clamp_output_prefix,"CONCAT_Results", "%s*")%section_titles[0])
-        print(input_files)  
-        return 0
+        # input_files=glob.glob(os.path.join(
+        #     clamp_output_prefix,"CONCAT_Results", "%s*")%section_titles[0])
+        # print(input_files)  
+        # return 0
 
     
     # HACK: ALL FEATURES CREATION
@@ -232,43 +242,121 @@ class feature_creation():
 
         # NOTE: feature0
         ## PATIENT PRESCRIPTION LOG
-        # pres_df=read_data(join(
-        #     read_prefix,'PRESCRIPTIONS'),dtype={'NDC':str}).dropna(subset=['NDC'])
-        # ## DRUG-ADE IN SIDER4, !!SIDER HAVE DUPLICATED RECORDS
-        # ade_df = read_data(
-        #     join(sideffect_prefix, 'ndc_icd9_side_effects'), 
-        #     dtype={'NDC':str,'ICD9_CODE':str},usecols=['NDC','ICD9_CODE']).drop_duplicates()
+        pres_df=read_data(join(
+            read_prefix,'PRESCRIPTIONS'),dtype={'NDC':str}).dropna(subset=['NDC'])
+        ## DRUG-ADE IN SIDER4, !!SIDER HAVE DUPLICATED RECORDS
+        ade_df = read_data(
+            join(sideffect_prefix, 'ndc_icd9_side_effects'), 
+            dtype={'NDC':str,'ICD9_CODE':str},usecols=['NDC','ICD9_CODE']).drop_duplicates()
 
-        # ## GET LIST OF DRUGS FROM SIDER4
-        # ade_drug=ade_df['NDC'].drop_duplicates()
-        # # NOTE:
-        # ## Remove records from Prescriptions where drugs cannot be found in SIDER
-        # pres_ade_df = pres_df[pres_df['NDC'].isin(ade_drug)].drop_duplicates()
-        # ## Sample only one episode for each patient
-        # self.get_sampled_epis(pres_ade_df)
-        # self.create_pres_ade_feature(pres_ade_df, ade_df)
+        ## GET LIST OF DRUGS FROM SIDER4
+        ade_drug=ade_df['NDC'].drop_duplicates()
+        # NOTE:
+        ## Remove records from Prescriptions where drugs cannot be found in SIDER
+        pres_ade_df = pres_df[pres_df['NDC'].isin(ade_drug)].drop_duplicates()
+        ## Sample only one episode for each patient
+        self.get_sampled_epis(pres_ade_df)
+        self.create_pres_ade_feature(pres_ade_df, ade_df)
+        self.create_pres_ade_feature()
 
         # TODO:
         ## NOTE: feature1
-        # self.create_fivedata_repre128()
+        self.create_fivedata_repre128()
 
         # NOTE: feature2
         self.create_dissum_feature()
 
+    
+    def runKMeans(self,data,n_clusters):
+        km = KMeans(n_clusters=n_clusters).fit(data)
+        print(Counter(km.labels_))
+        return km.labels_
+
+    ## same for all models
+    def model_plot(self, original_data, model, n_clusters,prescribed_patients,figure_path):
+        usr_field="HADM_ID"
+        prescribed_data=inner_join(prescribed_patients[['HADM_ID']].drop_duplicates(),original_data,"HADM_ID")
+        onedrug_patients=prescribed_data["HADM_ID"].unique()
+        data=prescribed_data.iloc[:,1:]
+
+        plotrows=int(n_clusters/2)
+
+        if(model=="kmeans"):
+            labels=self.runKMeans(data,n_clusters)
+
+        label_df = pd.DataFrame({usr_field:onedrug_patients,'LABEL':labels})
+        
+        ade_label_df = left_join(label_df, prescribed_patients, usr_field)
+        grouped_count = ade_label_df.groupby(['LABEL','ICD9_CODE'])[
+            usr_field].count().reset_index(name='count').sort_values(['count'], ascending=False) \
+
+            # .reset_index(name='count').sort_values(['count'], ascending=False)
+        grouped_count_df = pd.DataFrame(
+            grouped_count).pivot(
+                index='LABEL', columns='ICD9_CODE', values='count').fillna(0)
+
+        layout=(plotrows,math.ceil(n_clusters/plotrows))
+        print(layout)
+        grouped_count_df.T.plot(kind='line', subplots=True, sharey=True, layout=layout,figsize=(15,8))
+        plt.savefig(join(figure_path,'%s_%d.png'%(model,n_clusters)))
+        
+
+    def run_model_plot(self):
+        # pres_rxnorm_df=read_data(join(self.preprocess_folder,"pres_rxnorm_df"),dtype=str)
+        # diaglog_df = read_data(
+        #     join(read_prefix,'DIAGNOSES_ICD'),dtype={"HADM_ID":str},usecols=['SUBJECT_ID','HADM_ID','ICD9_CODE']
+        #     ).dropna(subset=['ICD9_CODE']).drop_duplicates()
+        # presrxnorm_diag_df = inner_join(pres_rxnorm_df,diaglog_df,"HADM_ID")
+        # write2file(presrxnorm_diag_df,join(self.preprocess_folder,"presrxnorm_diag_df"))
+
+        presrxnorm_diag_df=read_data(join(self.preprocess_folder,"presrxnorm_diag_df"),dtype={"HADM_ID":str,"RxNorm":str})
+        prescribed_patients = presrxnorm_diag_df[presrxnorm_diag_df["RxNorm"]==self.rxnorm_id][["HADM_ID","ICD9_CODE"]].drop_duplicates()
+        ## e.g., rxnorm=197380
+        pres_diag_sider_matrix=read_data(
+            join(self.feature_folder,"pres_diag_sider_matrix"),dtype=str).fillna(0)
+        dissum_autoencoder=pd.concat(
+            [read_data(join(self.feature_folder,"dissum_Autoencoder_EPIS"),dtype=str),
+            read_data(join(self.feature_folder,"dissum_Autoencoder_128"))],axis=1,sort=False)
+
+        folder_list=[join(
+            singledrug_prefix,self.rxnorm_id,folder) for folder in [
+                "pres_diag_sider_matrix","dissum_autoencoder"]]
+        [create_folder(folder) for folder in folder_list]
+        data_list=[pres_diag_sider_matrix, dissum_autoencoder]
+
+        for n_clusters in range(2,8,2):
+            for i in [0]:
+            # range(0,len(folder_list)):
+                self.model_plot(data_list[i],"kmeans",n_clusters,prescribed_patients,folder_list[i])
 
 
-        
-        
-        
 
-def test():
-    fc = feature_creation()
-    fc.create_data()
+def main():
+    # rxnorm_id = "197380"
+    # fc = feature_creation(rxnorm_id)
+    # fc.run_model_plot()
+    
+    if len(sys.argv) != 2:
+        print("Wrong command format, please follwoing the command format below:")
+        print("python single_drug_analysis.py [RxNorm]")
+        exit(0)
+
+    if len(sys.argv) == 2:    
+        rxnorm_id = sys.argv[1]         
+        fc = feature_creation(rxnorm_id)
+        fc.run_model_plot()
+        
+main()
+# print("haha")
+
+# def test():
+#     fc = feature_creation()
+    # fc.create_data()
     # fc.create_fivedata_repre128()
 
 
 
-test()
+# test()
 # print("test")
 # import tensorflow as tf
 # # print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
