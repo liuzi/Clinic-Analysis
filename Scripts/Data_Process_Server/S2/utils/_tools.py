@@ -5,12 +5,15 @@ import json
 import shutil
 from pathlib import Path
 
-def read_data(file_path, dtype=None, usecols=None, sep=',', header = 'infer', suffix = '.csv', pre=''):
+def csv_suffix(file_path,suffix = '.csv'):
     if(file_path.endswith(suffix)):
         final_file_path=file_path
     else:
         final_file_path = file_path+suffix
-    return pd.read_csv(final_file_path, dtype=dtype, usecols=usecols,sep=sep, header = header, encoding='latin1')
+    return final_file_path
+
+def read_data(file_path, dtype=None, usecols=None, sep=',', header = 'infer', suffix = '.csv', pre=''):
+    return pd.read_csv(csv_suffix(file_path), dtype=dtype, usecols=usecols,sep=sep, header = header, encoding='latin1')
 
 def write2txt(string, file_path):
     textfile = open("%s.txt"%file_path, 'w')
@@ -43,15 +46,15 @@ def create_folder_overwrite(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-def write2file(df, file_path, suffix = '.csv'):
-    df.to_csv(file_path+suffix, index=False)
+def write2file(df, file_path):
+    df.to_csv(csv_suffix(file_path), index=False)
 
-def write2file_nooverwrite(df, file_path, suffix = '.csv'):
-    if Path(file_path+suffix).exists():
-        print("%s already exists."%(file_path+suffix))
+def write2file_nooverwrite(df, file_path):
+    if Path(csv_suffix(file_path)).exists():
+        print("%s already exists."%csv_suffix(file_path))
     else:
         df.to_csv(file_path+suffix, index=False)
-        print("%s is successfully saved."%(file_path+suffix))
+        print("%s is successfully saved."%csv_suffix(file_path))
 
 
 def left_join(left_df, right_df, joined_field):
