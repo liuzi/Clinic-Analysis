@@ -143,6 +143,7 @@ def get_labmatrix(min_nulls=0.8):
     user_final_vectors = user_vectors_notna.fillna(user_vectors_notna.mean())
     
     user_final_vectors = user_final_vectors.rename_axis('HADM_ID').reset_index()
+    user_final_vectors['HADM_ID'] = df['HADM_ID'].apply(int)
     # write2file(user_final_vectors, self.write_path('labtest_uservectors'))    
     write2file(user_final_vectors, join(singledrug_featurepreprocess_prefix,'lab_matrix'))
 
