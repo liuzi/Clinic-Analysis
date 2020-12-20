@@ -4,6 +4,7 @@ from _path import *
 from _tools import *
 import pandas as pd
 import glob
+import numpy as np
 
 
 ## Import CLAMP NER result
@@ -97,19 +98,32 @@ def clean_value(value):
 
     if isinstance(value, str):
         if value.find("="):
-            return re.sub('[\[\]]', '', value.split("=")[-1])
+            return re.sub('[\[\]]', '', value.split("=")[-1]).strip()
 
 def getdrug(df):
-    drugdf = df[(df['3']=="semantic=drug") & (df['4'].str.contains("RxNorm"))].drop(columns=['0']).iloc[:,0:7]
-    cols=list(drugdf.columns[:3])+["START INDEX","END INDEX","SEMANTIC","CUI"]
+    drugdf = df[(df['3']=="semantic=drug") & (df['4'].str.contains("RxNorm"))].drop(columns=['0']).iloc[:,0:8]
+    cols=list(drugdf.columns[:3])+["START INDEX","END INDEX","SEMANTIC","CUI","NE"]
     drugdf.columns=cols
     drugdf = drugdf.reset_index()
-            
-    drugdf["CUI"], drugdf["RxNorm"], drugdf["Generic"] = drugdf.CUI.str.split(",").str
+
+    # print(list(drugdf.CUI.str.split(",").str)[:4])        
+    # exit()      
+    cui_rxnorm_generics = np.array([
+        cui_packed.split(",") if len(cui_packed.split(","))==3\
+            else [np.NAN]+cui_packed.split(",") for cui_packed in drugdf.CUI
+    ])
+
+    drugdf["CUI"], drugdf["RxNorm"], drugdf["Generic"] = cui_rxnorm_generics[:,0], \
+        cui_rxnorm_generics[:,1],cui_rxnorm_generics[:,2]
 
     for col in drugdf.columns[6:]:
         drugdf[col].astype(str)
         drugdf[col]=drugdf[col].apply(clean_value)
+
+
+    # drugdf["RxNorm"]=[rxnorm if cui.startswith('C') else cui for (cui,rxnorm) in zip(
+    #     drugdf["CUI"],drugdf["RxNorm"]
+    # )]
 
     return drugdf.drop(columns=["index"])
 
@@ -119,14 +133,16 @@ def getdisease(df):
     diseasedf.columns=cols
     
     diseasedf = diseasedf.reset_index()
-    
+    diseasedf["NE"]=diseasedf["NE"].apply(clean_value)
     diseasedf["CUI"], diseasedf["SNOMEDCT_US"] = diseasedf.CUI.str.split(" ",1).str
+    diseasedf["CUI"]=diseasedf["CUI"].apply(clean_value)
     diseasedf=diseasedf.dropna(subset=["SNOMEDCT_US"])
     diseasedf["SNOMEDCT_US"]=diseasedf["SNOMEDCT_US"].apply(lambda x: x[x.find("[")+1:-1])
+
     return diseasedf.drop(columns=["index"])
 
 def extract_items():
-    read_dtype={"HADM_ID":str, "GROUP_RANK":str}
+    read_dtype={"HADM_ID":str, "GROUP_RANK":str,"SUBJECT_ID":str}
     section_titles=['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']
 
     # icd9_SNOMED_df =pd.read_csv(join(mapping_prefix,'ICD9CM_SNOMED_MAP_1TO1_201912.txt')
@@ -134,20 +150,26 @@ def extract_items():
     # icd9_SNOMED_df = icd9_SNOMED_df[["ICD_CODE","SNOMED_CID"]]
     # icd9_SNOMED_df['ICD9_CODE']=icd9_SNOMED_df['ICD_CODE'].apply(lambda x: x.replace(".",""))
     # write2file(icd9_SNOMED_df,join(processed_map_prefix,"snomed_icd9_df"))
+
+    # ## TODO: UNCOMMENT
     icd9_SNOMED_df=read_data(os.path.join(processed_map_prefix,"snomed_icd9_df"),dtype={"SNOMED_CID":str,"ICD9_CODE":str})
     icd9_SNOMED_map = icd9_SNOMED_df.set_index('SNOMED_CID')['ICD9_CODE'].to_dict()
-
+    ## TODO: UNCOMMENT
     for section_title in section_titles:
         df=read_data(os.path.join(clamp_output_prefix,"CONCAT_Results", "%s_all_results_from_clamp_nerattribute")%section_title, dtype=read_dtype)
-        # print(df.columns)
+        # # TODO: Un comment
+        # # print(df.columns)
         drugdf=getdrug(df)
         write2file(drugdf,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_ALL_Drugs"%section_title))
-        del drugdf
-
-        diseasedf=getdisease(df)
-        diseasedf["ICD9_CODE"]=diseasedf["SNOMEDCT_US"].apply(lambda x: (",").join(
-            filter(None,[icd9_SNOMED_map.get(key, None) for key in x.strip().split(',')])))
-        write2file(diseasedf,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%section_title))
+        # write2file(drugdf[["CUI","RxNorm","NE"]].drop_duplicates(),os.path.join(clamp_output_prefix,"CONCAT_Results","%s_CUI_RXNORM_NAME"%section_title))
+        
+        
+        # # # TODO: Un comment
+        # diseasedf=getdisease(df)
+        # diseasedf["ICD9_CODE"]=diseasedf["SNOMEDCT_US"].apply(lambda x: (",").join(
+        #     filter(None,[icd9_SNOMED_map.get(key, None) for key in x.strip().split(',')])))
+        # write2file(diseasedf,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%section_title))
+        # write2file(diseasedf[["CUI","SNOMEDCT_US","NE"]].drop_duplicates(),os.path.join(clamp_output_prefix,"CONCAT_Results","%s_CUI_SNOMED_NAME"%section_title))
 
 def mat_noEmpty(mat,axis_num=0):
     if(axis_num):
@@ -165,6 +187,7 @@ def mat_df(mat,item):
     return df2
 
 def get_binarymatrix(raw_df,extract_fields, all_item):
+
     df = raw_df[extract_fields]
     all_item_df=all_item
     all_item_df[extract_fields[0]]='remove'
@@ -178,65 +201,82 @@ def get_binarymatrix(raw_df,extract_fields, all_item):
     return matrix
 
 
+# TODO: Get UMLS CUI
 def get_allitems_across_sections():
-    all_diseases = []
-    for folder in ['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']:
-        new_diseases = read_data(os.path.join(
-            clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%folder),
-            dtype={'SUBJECT_ID':str,'HADM_ID':str}).dropna(subset=['ICD9_CODE'])["ICD9_CODE"].unique().tolist()
-        print("%s: # of DISEASE"%folder)
-        print(len(new_diseases))
-        all_diseases=all_diseases+new_diseases
+    # all_diseases = []
+    # for folder in ['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']:
+    #     new_diseases = read_data(os.path.join(
+    #         clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%folder),
+    #         dtype={'SUBJECT_ID':str,'HADM_ID':str}).dropna(subset=['ICD9_CODE'])["ICD9_CODE"].unique().tolist()
+    #     print("%s: # of DISEASE"%folder)
+    #     print(len(new_diseases))
+    #     all_diseases=all_diseases+new_diseases
 
-    all_diseases=list(set(all_diseases))
-    all_diseases = pd.DataFrame({"ICD9_CODE":all_diseases})
-    write2file(all_diseases,os.path.join(clamp_output_prefix,"CONCAT_Results","all_diseases_3sections"))
+    # all_diseases=list(set(all_diseases))
+    # all_diseases = pd.DataFrame({"ICD9_CODE":all_diseases})
+    # write2file(all_diseases,os.path.join(clamp_output_prefix,"CONCAT_Results","all_diseases_3sections"))
 
     all_drug = []
     for folder in ['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']:
         cols=["SUBJECT_ID","HADM_ID","RxNorm"]
         new_drug_df = read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","%s_ALL_Drugs"%folder),
-                                dtype={'SUBJECT_ID':str,'HADM_ID':str})[cols]
+                                dtype=str)[cols]
 
         print("%s: # of Drugs"%folder)
         print(len(new_drug_df['RxNorm'].unique()))
         all_drug = all_drug+list(new_drug_df['RxNorm'].unique())    
     all_drug = list(set(all_drug))
-    all_drug_df = pd.DataFrame({"RxNorm":all_drug})
+    all_drug_df = pd.DataFrame({"RxNorm":all_drug}).dropna()
     write2file(all_drug_df,os.path.join(clamp_output_prefix,"CONCAT_Results","all_drugs_3sections"))
 
-
+# TODO: modify
 def get_matrix_from_dissum():
     all_diseases = read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","all_diseases_3sections"),dtype=str)
-    all_drugs = read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","all_drugs_3sections"),dtype=str)
+    all_drugs = read_data(
+        os.path.join(clamp_output_prefix,
+        "CONCAT_Results","all_drugs_3sections"),dtype=str)
+    
+    # disease_field="ICD9_CODE"
+    disease_field="CUI"
 
 
-    for folder in ['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']:
+    for folder in ['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION'][:2]:
         # NOTE: diseases
-        dissum_disease_df = read_data(os.path.join(
-            clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%folder),
-            dtype={'SUBJECT_ID':str,'HADM_ID':str}).dropna(subset=['ICD9_CODE'])[["HADM_ID","SNOMEDCT_US","ICD9_CODE"]]
+        # dissum_disease_df = read_data(os.path.join(
+        #     clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%folder),
+        #     dtype={'SUBJECT_ID':str,'HADM_ID':str}).dropna(subset=disease_field)[["HADM_ID","SNOMEDCT_US", disease_field]]
 
-        print("{:}: {:,d} episodes, {:,d} SNOMEDCT_US, {:,d} ICD9_CODE, {:,d} Rows".format(folder,
-            len(dissum_disease_df.HADM_ID.unique()), len(dissum_disease_df.SNOMEDCT_US.unique()),len(dissum_disease_df.ICD9_CODE.unique()), len(dissum_disease_df)))
+    #     # TODO: uncomment following
+    #     dissum_disease_df = read_data(os.path.join(
+    #         clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%folder),
+    #         dtype={'SUBJECT_ID':str,'HADM_ID':str}).dropna(subset=[disease_field])[["HADM_ID",disease_field]]
+    #     # dissum_disease_df[disease_field]=dissum_disease_df[disease_field].apply(lambda x: x.split("=")[-1])
+
+    #     print("{:}: {:,d} episodes, {:,d} CUI, {:,d} Rows".format(folder,
+    #         len(dissum_disease_df.HADM_ID.unique()), len(dissum_disease_df.CUI.unique()), len(dissum_disease_df)))
             
-        disease_matrix = get_binarymatrix(dissum_disease_df[['HADM_ID','ICD9_CODE']],extract_fields =['HADM_ID','ICD9_CODE'], all_item=all_diseases)   
-        print(disease_matrix.shape)
-        write2file(disease_matrix,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_diseaseMatrix"%folder))
+    #     disease_matrix = get_binarymatrix(dissum_disease_df[['HADM_ID',disease_field]],extract_fields =['HADM_ID',disease_field], all_item=all_diseases)   
+    #     print(disease_matrix.shape)
+    #     # write2file(disease_matrix,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_diseaseMatrix"%folder))
 
+    #     write2file(disease_matrix,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_diseaseMatrix_UMLS_CUI"%folder))
+
+    # TODO: uncomment following
         # NOTE: drugs
         cols=["SUBJECT_ID","HADM_ID","RxNorm"]
         dissum_drug_df = read_data(os.path.join(
             clamp_output_prefix,"CONCAT_Results","%s_ALL_Drugs"%folder),
-            dtype={'SUBJECT_ID':str,'HADM_ID':str})[cols]
+            dtype=str)[cols]
 
         print("{:}: {:,d} episodes, {:,d} RxNorm codes, {:,d} Rows".format(folder,
             len(dissum_drug_df.HADM_ID.unique()), len(dissum_drug_df.RxNorm.unique()), len(dissum_drug_df)))
         
-        drug_matrix = get_binarymatrix(dissum_drug_df[['HADM_ID','RxNorm']],extract_fields =['HADM_ID','RxNorm'],all_item=all_drugs)    
+        drug_matrix = get_binarymatrix(dissum_drug_df[['HADM_ID','RxNorm']],\
+            extract_fields =['HADM_ID','RxNorm'],
+            all_item=all_drugs)    
         print(drug_matrix.shape)
         write2file(drug_matrix,os.path.join(clamp_output_prefix,"CONCAT_Results","%s_drugMatrix"%folder))
-    #     save_items_byfolder(patients_drugs,file="drugs_%s"%folder,newfolder=False)
+# #     save_items_byfolder(patients_drugs,file="drugs_%s"%folder,newfolder=False)
 
 
 ## Revised version: New items per episode
@@ -295,17 +335,37 @@ def get_new_item(
     # print("Number of espisodes containing new items: %d" % len(mat1_newitems))
     # write2file(mat1_newitems_distri,join(drug_single_dir,"distribution_of_new%s"%item))
 
+# TODO: Get UMLS CUI
+def get_all_CUIs_across_sections():
+    all_diseases = []
+    for folder in ['HOSPITAL_COURSE', 'MEDICAL_HISTORY', 'MEDICATIONS_ON_ADMISSION']:
+        new_diseasesdf = read_data(os.path.join(
+            clamp_output_prefix,"CONCAT_Results","%s_ALL_Diseases"%folder),
+            dtype={'SUBJECT_ID':str,'HADM_ID':str})
+        new_diseasesdf["CUI"]=new_diseasesdf["CUI"].apply(lambda x: x.split("=")[-1])
+        new_diseases=new_diseasesdf["CUI"].unique().tolist()
+        print(new_diseases[:5])
+        print("%s: # of DISEASE"%folder)
+        print(len(new_diseases))
+        all_diseases=all_diseases+new_diseases
+
+    all_diseases=list(set(all_diseases))
+    all_diseases = pd.DataFrame({"CUI":all_diseases})
+    write2file(all_diseases,os.path.join(clamp_output_prefix,"CONCAT_Results","all_diseases_3sections_UMLS_CUI"))
+
+
+#TODO:
 def get_new_diseases_drugs():
     ## revised: get new diseases
     # code_name_map = read_data(join(read_prefix,"D_ICD_DIAGNOSES"),dtype=str).set_index("ICD9_CODE")['SHORT_TITLE'].to_dict()
     # diaglog_df = read_data(join(read_prefix,'DIAGNOSES_ICD'),dtype={'SUBJECT_ID':str, "HADM_ID":str,'ICD9_CODE':str},\
     #                     usecols=['SUBJECT_ID','HADM_ID','ICD9_CODE']).dropna(subset=['ICD9_CODE']).drop_duplicates()
 
-    get_new_item(read_data(os.path.join(
-        clamp_output_prefix,"CONCAT_Results","HOSPITAL_COURSE_diseaseMatrix"),
-        dtype={"HADM_ID":str}),
-        read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","MEDICAL_HISTORY_diseaseMatrix"),
-        dtype={"HADM_ID":str}))
+    # get_new_item(read_data(os.path.join(
+    #     clamp_output_prefix,"CONCAT_Results","HOSPITAL_COURSE_diseaseMatrix"),
+    #     dtype={"HADM_ID":str}),
+    #     read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","MEDICAL_HISTORY_diseaseMatrix"),
+    #     dtype={"HADM_ID":str}))
 
     ## TODO: FIND drug rxnorm map creating codes
     # rxnorm_name_map = read_data(join(ade_related_prefix,"RxNorm_DRUGNAME"),dtype=str).set_index("RxNorm")['DRUG'].to_dict()
@@ -315,19 +375,44 @@ def get_new_diseases_drugs():
         read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","MEDICATIONS_ON_ADMISSION_drugMatrix"),dtype={"HADM_ID":str}),
         epi_field="HADM_ID",item="RxNorm")
 
+#TODO:
+def get_new_diseases_CUI():
+    get_new_item(read_data(os.path.join(
+        clamp_output_prefix,"CONCAT_Results","HOSPITAL_COURSE_diseaseMatrix_UMLS_CUI"),
+        dtype={"HADM_ID":str}),
+        read_data(os.path.join(clamp_output_prefix,"CONCAT_Results","MEDICAL_HISTORY_diseaseMatrix_UMLS_CUI"),
+        dtype={"HADM_ID":str}),
+        epi_field="HADM_ID",item="CUI")
+
+
+if __name__=='__main__':
+    #  get_all_CUIs_across_sections()
+    # get_matrix_from_dissum()
+    # get_new_diseases_CUI()
+
+    extract_items()
+
+
+    # get_allitems_across_sections()
+    # get_matrix_from_dissum()
+    # get_new_diseases_drugs()
+    # print(str(1000.0))
+
+
+
 
 
 # HACK:
 # concatcsvs(True)
-# extract_items()
-# get_allitems_across_sections()
+
+
 # get_matrix_from_dissum()
-get_new_diseases_drugs()
+# get_new_diseases_drugs()
+# get_df_list("/data/liu/mimic3/CLAMP_NER/ner-attribute/output/Rule2/MEDICATIONS_ON_ADMISSION")
 # HACK:        
           
 
 # print("shabi")
-# get_df_list("/data/liu/mimic3/CLAMP_NER/ner-attribute/output/Rule2/MEDICATIONS_ON_ADMISSION")
     
 # print(rule_benchmark)        
 # print(glob.glob(os.path.join(clamp_rule_benchmark,"*_NORMAL.csv")))
