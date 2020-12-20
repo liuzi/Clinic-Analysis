@@ -4,9 +4,10 @@ import os
 import json
 import shutil
 from pathlib import Path
+from csv import writer
 
 def csv_suffix(file_path,suffix = '.csv'):
-    if(file_path.endswith(suffix)):
+    if('.' in file_path):
         final_file_path=file_path
     else:
         final_file_path = file_path+suffix
@@ -41,19 +42,20 @@ def create_folder(path):
     else:
         print ("Successfully create the directory %s" % path)
 
-def create_folder_overwrite(path):
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
+def create_folder_overwrite(file_path):
+    if os.path.exists(file_path):
+        print("%s already exists. Clear and re-create this folder."%file_path)
+        shutil.rmtree(file_path)
+    os.makedirs(file_path)
 
 def write2file(df, file_path):
     df.to_csv(csv_suffix(file_path), index=False)
 
 def write2file_nooverwrite(df, file_path):
-    if Path(csv_suffix(file_path)).exists():
+    if os.path.exists((csv_suffix(file_path))):
         print("%s already exists."%csv_suffix(file_path))
     else:
-        df.to_csv(file_path+suffix, index=False)
+        df.to_csv(csv_suffix(file_path), index=False)
         print("%s is successfully saved."%csv_suffix(file_path))
 
 
@@ -70,3 +72,23 @@ def print_patient_stats(df):
     for col in df.columns:
         print("# of %s: %d"%(col,len(df[col].unique())))
         # print("# of %s: %d"%len(df['HADM_ID'].unique()))
+
+def append_csv_byrow(row, file_name):
+    
+    # Open file in append mode
+    with open(csv_suffix(file_name), 'a+', newline='') as write_obj:
+        # Create a writer object from csv module
+        csv_writer = writer(write_obj)
+        # Add contents of list as last row in the csv file
+        csv_writer.writerow(row)
+        print("Insert row:\"%s\" into file %s"%(
+            row,df.shape[0],file_name))
+
+
+def append_csv_bydf(df, file_name):
+    
+    # Open file in append mode
+    with open(csv_suffix(file_name), 'a') as write_obj:
+        df.to_csv(write_obj, mode='a', header=write_obj.tell()==0)
+        print("Insert %d rows into file %s"%(
+            df.shape[0],file_name))

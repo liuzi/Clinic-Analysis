@@ -1,4 +1,11 @@
 import re 
+import pandas as pd
+import numpy as np
+from itertools import chain
+from os.path import join
+from utils._path import read_prefix, singledrug_prefix
+from utils._tools import read_data
+import itertools
 
 
 def template1():
@@ -21,61 +28,41 @@ def template2():
 %s
 \end{document}'''
 
+def get_df_stats(df,value_index=1):
+
+    values=df.iloc[:,value_index]
+    stats=values.describe().map(
+        lambda x: round(x,2)
+    )
+
+    return pd.DataFrame(stats).transpose()
+
 
 def each_drug_latex(dfs,drug_vars):
     section_drug_template=r'''\section{Drug rxnorm=%s, drug name=%s}'''
-    sub_unique_section=r'''\subsection{Top 10 new diseases that are unique to each cluster}
--'''
-    sub_section=r'''\subsection{Top 10 new diseases}
--'''
+    ## NOTE: top num-> len(per df in dfs)
+    sub_unique_section=r'''\subsection{Top %d new diseases that are unique to each cluster}
+-'''%(len(dfs[0]))
+    sub_section=r'''\subsection{Top %d new diseases}
+-'''%(len(dfs[0]))
 
     section_drug=section_drug_template%(tuple(drug_vars[:2]))
 
-    dfs_latex=list(map(lambda df:df.to_latex(index=False),dfs))
+    df_stats_list=list(chain.from_iterable(zip(dfs, list(map(get_df_stats,dfs))))) 
+
+    
+    dfs_latex=list(map(lambda df:df.to_latex(index=False), df_stats_list))
 
     dfs_latex_sum=('\n\n').join(
-        [section_drug,sub_unique_section]+dfs_latex[:2]+[sub_section]+dfs_latex[2:])
+        [section_drug,sub_unique_section]+dfs_latex[:4]+\
+            [sub_section]+dfs_latex[4:])
+    # print(dfs_latex_sum)
+    # quit()
     return dfs_latex_sum
 
 
 
-
-# def plot_df_as_table_v2(dfs,save_path):
-#     # plt.subplots(nrows,2,sharey=True)
-#     filename = join(save_path,'out.tex')
-
-#     template = \
-#         r'''\documentclass[preview]{{standalone}}
-# \usepackage{{booktabs}}
-# \begin{{document}}
-# %s
-# \end{{document}}'''
-#     print(template%("{}\n"*3))
-
-
-#     df=dfs[0]
-#     print(df.to_latex(index=False))  
-#     table_latex=template.format(
-#         *list(
-#             map(lambda df:df.to_latex(index=False),dfs)
-#         )
-#     )
-#     with open(filename, 'wb') as f:
-#         f.write(bytes(table_latex,'UTF-8'))
-    
-#     subprocess.call(['pdflatex', filename])
-#     subprocess.call(['convert', '-density', '300', pdffile, '-quality', '90', outname])
-
-#     fig,axs = plt.subplots(nrows=1,ncols=2) # no visible frame
-#     for (ax,df) in zip(axs,dfs):
-#         ax.xaxis.set_visible(False)  # hide the x axis
-#         ax.yaxis.set_visible(False)  # hide the y axis
-#         plotting.table(ax, df)  # where df is your data frame
-
-#     plt.savefig(join(save_path,'mytable.png'))
-
-
-def save_df_as_latextable(rxnorm_dflists,save_path):
+def save_new_dis_df_as_latextable(rxnorm_dflists,save_path):
     # plt.subplots(nrows,2,sharey=True)
     # filename = join(save_path,'out.tex')
 
@@ -96,36 +83,56 @@ def save_df_as_latextable(rxnorm_dflists,save_path):
     with open(save_path, 'wb') as f:
         f.write(bytes(drug_latex,'UTF-8'))
 
-    # print(template%("{}\n"*3))
-    # print(section_drug.format(*section_vars))
 
-    # print(
-    #     ('\n\n').join(drug_latex_list)
-    #     )
-
-
-    # df=dfs[0]
-    # print(df.to_latex(index=False))  
-    # table_latex=template.format(
-    #     *list(
-    #         map(lambda df:df.to_latex(index=False),dfs)
-    #     )
-    # )
-    # with open(filename, 'wb') as f:
-    #     f.write(bytes(table_latex,'UTF-8'))
+def stas_orignial_mimic():
+    table_files={
+        "DIAGNOSES_ICD":"ICD9_CODE",
+        "PRESCRIPTIONS":"NDC",
+        "LABEVENTS":"ITEMID",
+        "PROCEDURES_ICD":"ICD9_CODE",
+        "NOTEEVENTS":None,
+        "PATIENTS":None,
+        "ADMISSIONS":None}
     
-    # subprocess.call(['pdflatex', filename])
-    # subprocess.call(['convert', '-density', '300', pdffile, '-quality', '90', outname])
+    check_field=["HADM_ID","SUBJECT_ID"]
+    stats_field=check_field+["ITEM","ITEM_NAME"]
+    stats_df_list=[]
 
-    # fig,axs = plt.subplots(nrows=1,ncols=2) # no visible frame
-    # for (ax,df) in zip(axs,dfs):
-    #     ax.xaxis.set_visible(False)  # hide the x axis
-    #     ax.yaxis.set_visible(False)  # hide the y axis
-    #     plotting.table(ax, df)  # where df is your data frame
+    for key, value in table_files.items():
 
-    # plt.savefig(join(save_path,'mytable.png'))
+        iter_check_field=check_field.copy()
+        if(value):
+            iter_check_field.append(value)
+
+        df=read_data(
+            join(read_prefix, key),
+            dtype=dict(zip(iter_check_field,
+            itertools.repeat(str)))).reindex(iter_check_field,axis=1).\
+                dropna(axis=1, how='all')
+        stats_series=df.nunique()
+        if(value):
+            stats_series_df=pd.DataFrame(
+                {key:stats_series.append(pd.Series({stats_field[-1]:value}))})
+            stats_series_df.index=stats_field
+        else:
+            stats_series_df=pd.DataFrame({key:stats_series})
+        stats_df_list.extend([stats_series_df])
+        del df
+
+    stats_df=pd.concat(stats_df_list,axis=1,ignore_index=False,sort=False)\
+        .transpose().reset_index()
+    stats_df.rename(columns={"index":"Orignial Table Name"}, inplace=True)
+
+    with open(join(singledrug_prefix,"mimicstats"), 'wb') as f:
+        f.write(bytes(stats_df.to_latex(index=False),'UTF-8'))
+
+
+
 
 
 # if __name__ == '__main__':
-#     plot_df_as_table([],"",["12341","dfge","that are uiqune to each cluster"])
-    # print((*["12341","dfge","that are uiqune to each cluster"]))
+# #     plot_df_as_table([],"",["12341","dfge","that are uiqune to each cluster"])
+#     # print((*["12341","dfge","that are uiqune to each cluster"]))
+#     stas_orignial_mimic()  
+
+
